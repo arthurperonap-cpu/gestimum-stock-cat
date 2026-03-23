@@ -414,54 +414,19 @@ function exportAlerts() {
   });
   dlCSV(lines.join('\n'),'Alertes_Prix_CAT_');
 }
-async function exportAbsent() {
+function exportAbsent() {
   var exp=results.filter(function(r){return r.status==='absent';});
   if (!exp.length) return;
   var seen={}, uniq=[];
   exp.forEach(function(r){if(!seen[r.gc]){seen[r.gc]=true;uniq.push(r);}});
-  var btn=document.getElementById('btnE2');
-  btn.disabled=true;
-  btn.textContent='\u23f3 Traduction IA en cours...';
-  var items=uniq.map(function(r){return r.ref+'|'+r.desc;});
-  var prompt='Tu es expert en pieces detachees moteurs diesel Caterpillar.'
-    +' Pour chaque piece, retourne une designation courte et epuree au format "FRANCAIS / ENGLISH".'
-    +' Supprime dimensions, tolerances, materiaux et numeros de la designation.'
-    +' Exemples: "3.53 x 34.52mm 75A FKM O-Ring" -> "Joint torique / Seal O-Ring"'
-    +' "0.8mm Thick Bonnet Cover Gasket" -> "Joint de couvercle / Bonnet Cover Gasket"'
-    +' "Cat Reman Electric Starting Motor" -> "Demarreur electrique REMAN / Electric Starter REMAN"'
-    +' Reponds UNIQUEMENT avec un tableau JSON: [{"ref":"...","label":"..."}]'
-    +' Aucun texte avant ou apres. Pas de backticks.\n\n'
-    +items.join('\n');
-  var labelMap={};
-  try {
-    var response=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',
-        max_tokens:4000,
-        messages:[{role:'user',content:prompt}]
-      })
-    });
-    var data=await response.json();
-    var text='';
-    if (data.content) data.content.forEach(function(b){if(b.type==='text')text+=b.text;});
-    text=text.replace(/^```[a-z]*\n?/,'').replace(/\n?```$/,'').trim();
-    var parsed=JSON.parse(text);
-    parsed.forEach(function(item){labelMap[item.ref]=item.label;});
-  } catch(err) {
-    console.error('API error:',err);
-    uniq.forEach(function(r){labelMap[r.ref]=r.desc;});
-  }
-  var lines=['Code article (Gestimum),Designation FR / EN,Cout unitaire HT (EUR)'];
+  var lines=['Code article (Gestimum),Designation EN (CAT),Cout unitaire HT (EUR)'];
   uniq.forEach(function(r){
-    var label=(labelMap[r.ref]||r.desc).replace(/,/g,';');
-    lines.push(r.gc+','+label+','+(r.csvPrice>0?r.csvPrice.toFixed(2):''));
+    var desc=r.desc.replace(/,/g,';');
+    lines.push(r.gc+','+desc+','+(r.csvPrice>0?r.csvPrice.toFixed(2):''));
   });
   dlCSV(lines.join('\n'),'Nouveaux_Articles_CAT_');
-  btn.disabled=false;
-  btn.textContent='\u2b07 Nouveaux articles';
 }
+
 function dlCSV(content,prefix){
   var blob=new Blob([content],{type:'text/csv;charset=utf-8;'});
   var a=document.createElement('a');
