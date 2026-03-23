@@ -97,11 +97,23 @@
   .addbtn{background:var(--y);color:var(--k);border:none;padding:8px 18px;font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:600;cursor:pointer;}
   .addbtn:hover{background:#ffd233;}
   .mft{padding:14px 24px;border-top:1px solid var(--b);display:flex;align-items:center;gap:12px;}
+  .tabs{display:flex;border-bottom:2px solid var(--b);margin-bottom:24px;}
+  .tab{font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;padding:12px 24px;cursor:pointer;color:var(--x);border-bottom:3px solid transparent;margin-bottom:-2px;transition:all 0.15s;}
+  .tab:hover{color:var(--t);}
+  .tab.active{color:var(--y);border-bottom-color:var(--y);}
+  .tab-panel{display:none;}
+  .tab-panel.active{display:block;}
 </style>
 </head>
 <body>
 <header><div class="hbar"><div class="logo">CAT</div><div><div class="htitle">Analyse Commandes CAT &#8594; Gestimum</div><div class="hsub">Entr&#233;es stock &#183; Nouveaux articles &#183; Alertes prix</div></div></div></header>
 <div class="main">
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('analyse',this)">&#128230; Analyse commandes</div>
+    <div class="tab" onclick="switchTab('prix',this)">&#128176; Mise à jour prix</div>
+  </div>
+
+  <div id="tab-analyse" class="tab-panel active">
   <div class="card">
     <div class="cnum">Fichiers &#224; analyser</div>
     <div class="ctitle">Exports Commandes CAT (CSV)</div>
@@ -154,7 +166,38 @@
       <th>D&#233;signation</th><th>N&#176; Commande</th><th>Qt&#233;</th><th>Prix CAT</th>
     </tr></thead><tbody id="tb"></tbody></table>
   </div>
+</div>  </div>
+
+  <div id="tab-prix" class="tab-panel">
+    <div class="card">
+      <div class="cnum">Fichier panier CAT</div>
+      <div class="ctitle">Export panier SIS / Parts.cat.com (CSV)</div>
+      <div class="cdesc">Exportez votre panier depuis le portail Caterpillar. L'outil extrait les références et les prix unitaires pour générer un fichier d'import Gestimum.</div>
+      <div class="drop" id="dz-prix">
+        <input type="file" id="fi-prix" accept=".csv">
+        <div class="dicon">&#128176;</div>
+        <div class="dtxt">Glissez votre fichier CSV panier ici<br>ou <strong>cliquez pour sélectionner</strong></div>
+      </div>
+      <div class="flist" id="flist-prix"></div>
+    </div>
+    <div class="abar">
+      <button class="btn bp" id="btnExportPrix" disabled onclick="exportPrix()">&#8595; Export mise à jour prix Gestimum</button>
+      <span class="smsg" id="smsg-prix">Chargez le fichier panier CAT pour démarrer.</span>
+    </div>
+    <div class="sbar" id="sbar-prix" style="grid-template-columns:repeat(3,1fr)">
+      <div class="sb"><div class="sv" id="sp1">&#8212;</div><div class="sl">Articles détectés</div></div>
+      <div class="sb sg"><div class="sv" id="sp2">&#8212;</div><div class="sl">Avec prix</div></div>
+      <div class="sb sab"><div class="sv" id="sp3">&#8212;</div><div class="sl">Sans prix</div></div>
+    </div>
+    <div class="rwrap" id="rw-prix" style="display:none">
+      <table><thead><tr>
+        <th>Code Gestimum</th><th>Réf. CAT</th><th>Nom article</th><th>Prix achat HT (EUR)</th>
+      </tr></thead><tbody id="tb-prix"></tbody></table>
+    </div>
+  </div>
+
 </div>
+
 <div class="mov" id="mov"><div class="mbox">
   <div class="mhd"><span class="mtitle">&#9881; BASE STOCK G&#201;R&#201;E</span><button class="mclose" onclick="closeModal()">&#x2715;</button></div>
   <div class="mbody">
@@ -491,6 +534,124 @@ function addEntry(){
   document.getElementById('ac').value='';
   document.getElementById('al').value='';
   renderDB();
+}
+
+// ---- TABS ----
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+  document.querySelectorAll('.tab-panel').forEach(function(p){ p.classList.remove('active'); });
+  btn.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+// ---- MISE A JOUR PRIX ----
+var prixData = [];
+
+var dzPrix = document.getElementById('dz-prix');
+dzPrix.addEventListener('dragover', function(e){ e.preventDefault(); dzPrix.style.borderColor='#F5BE00'; });
+dzPrix.addEventListener('dragleave', function(){ dzPrix.style.borderColor=''; });
+dzPrix.addEventListener('drop', function(e){ e.preventDefault(); dzPrix.style.borderColor=''; loadPrixFile(e.dataTransfer.files[0]); });
+document.getElementById('fi-prix').addEventListener('change', function(){ if(this.files[0]) loadPrixFile(this.files[0]); this.value=''; });
+
+function loadPrixFile(f) {
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    try {
+      prixData = parsePanier(ev.target.result);
+      renderPrix();
+    } catch(err) {
+      alert('Erreur lecture fichier panier: ' + err.message);
+    }
+  };
+  reader.readAsText(f, 'utf-8');
+}
+
+function parsePanier(txt) {
+  if (txt.charCodeAt(0) === 0xFEFF) txt = txt.slice(1);
+  var lines = txt.split('\n');
+  // Find the header row containing 'Part No.'
+  var hdrIdx = -1;
+  for (var i = 0; i < lines.length; i++) {
+    if (lines[i].indexOf('Part No.') !== -1) { hdrIdx = i; break; }
+  }
+  if (hdrIdx === -1) throw new Error('En-t\u00eate "Part No." non trouv\u00e9e');
+  var hdrs = splitLine(lines[hdrIdx].replace('\r',''));
+  var partIdx = -1, priceIdx = -1, nameIdx = -1;
+  for (var j = 0; j < hdrs.length; j++) {
+    var h = hdrs[j].trim();
+    if (h === 'Part No.')       partIdx  = j;
+    if (h === 'Price Per Unit') priceIdx = j;
+    if (h === 'Part Name')      nameIdx  = j;
+  }
+  if (partIdx === -1 || priceIdx === -1) throw new Error('Colonnes "Part No." ou "Price Per Unit" introuvables');
+  var out = [];
+  for (var i = hdrIdx + 1; i < lines.length; i++) {
+    var line = lines[i].replace('\r','');
+    if (!line.trim()) continue;
+    var v = splitLine(line);
+    var ref = (v[partIdx]||'').trim();
+    if (!ref || ref === 'Sub Total' || ref === 'Part No.') continue;
+    var priceRaw = (v[priceIdx]||'').trim();
+    var name = nameIdx >= 0 ? (v[nameIdx]||'').trim() : '';
+    var price = parsePrix(priceRaw);
+    var gc = '52' + ref.split('-').join('');
+    out.push({ ref: ref, gc: gc, name: name, price: price, priceRaw: priceRaw });
+  }
+  return out;
+}
+
+function parsePrix(s) {
+  // Format: '46,59 (EUR) ea.' or '1 217,15 (EUR) ea.'
+  var m = s.match(/^([\d\s]+[,.][\d]+)/);
+  if (!m) return null;
+  var num = m[1].replace(/\s/g,'').replace(',','.');
+  var val = parseFloat(num);
+  return isNaN(val) ? null : val;
+}
+
+function renderPrix() {
+  var withPrice    = prixData.filter(function(r){ return r.price !== null; }).length;
+  var withoutPrice = prixData.length - withPrice;
+  document.getElementById('sp1').textContent = prixData.length;
+  document.getElementById('sp2').textContent = withPrice;
+  document.getElementById('sp3').textContent = withoutPrice;
+  document.getElementById('sbar-prix').style.display = 'grid';
+
+  var flist = document.getElementById('flist-prix');
+  flist.innerHTML = '';
+  var div = document.createElement('div'); div.className = 'fitem';
+  var span = document.createElement('span');
+  span.textContent = '\u2713 ' + prixData.length + ' articles charg\u00e9s \u2014 ' + withPrice + ' avec prix';
+  div.appendChild(span); flist.appendChild(div);
+
+  var tb = document.getElementById('tb-prix');
+  tb.innerHTML = '';
+  document.getElementById('rw-prix').style.display = prixData.length ? 'block' : 'none';
+  prixData.forEach(function(r) {
+    var tr = document.createElement('tr');
+    var td1 = document.createElement('td'); td1.className='mn'; td1.textContent = r.gc;
+    var td2 = document.createElement('td'); td2.className='mn'; td2.style.color='var(--y)'; td2.textContent = r.ref;
+    var td3 = document.createElement('td'); td3.textContent = r.name;
+    var td4 = document.createElement('td'); td4.className='mn'; td4.style.textAlign='right'; td4.style.fontWeight='600';
+    if (r.price !== null) {
+      td4.textContent = r.price.toFixed(2) + ' \u20ac';
+    } else {
+      td4.textContent = 'N/D'; td4.style.color = 'var(--r)';
+    }
+    tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3); tr.appendChild(td4);
+    tb.appendChild(tr);
+  });
+
+  document.getElementById('btnExportPrix').disabled = withPrice === 0;
+  document.getElementById('smsg-prix').textContent = prixData.length + ' articles \u2014 ' + withPrice + ' prix \u00e0 mettre \u00e0 jour. Cliquez Exporter.';
+}
+
+function exportPrix() {
+  var exp = prixData.filter(function(r){ return r.price !== null; });
+  if (!exp.length) return;
+  var lines = ['Code article,Prix achat unitaire HT'];
+  exp.forEach(function(r){ lines.push(r.gc + ',' + r.price.toFixed(2)); });
+  dlCSV(lines.join('\n'), 'MAJ_Prix_CAT_');
 }
 
 </script>
