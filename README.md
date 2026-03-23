@@ -1,0 +1,1 @@
+# gestimum-stock-cat
