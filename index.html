@@ -209,13 +209,16 @@ td{padding:10px 14px;}
   </div>
 
   <div class="abar">
-    <button class="btn be1" id="btnExportPrix" disabled onclick="exportPrix()" style="display:inline-block">&#8595; Export mise &#224; jour prix Gestimum (.xlsx)</button>
+    <button class="btn be1" id="btnExportPrix" disabled onclick="exportPrix()" style="display:inline-block">&#8595; MAJ prix Gestimum (.xlsx)</button>
+    <button class="btn" id="btnExportReplaced" disabled onclick="exportReplaced()" style="display:inline-block;background:var(--r)">&#8595; Code article remplac&#233; (.xlsx)</button>
+    <button class="btn" id="btnExportNoprice" disabled onclick="exportNoprice()" style="display:inline-block;background:#FF9800">&#8595; Code article &#224; v&#233;rifier (.xlsx)</button>
     <span class="smsg" id="smsg-prix">Chargez le fichier panier CAT pour d&#233;marrer.</span>
   </div>
-  <div class="sbar" id="sbar-prix" style="grid-template-columns:repeat(3,1fr)">
+  <div class="sbar" id="sbar-prix" style="grid-template-columns:repeat(4,1fr)">
     <div class="sb"><div class="sv" id="sp1">&#8212;</div><div class="sl">Articles d&#233;tect&#233;s</div></div>
     <div class="sb sg"><div class="sv" id="sp2">&#8212;</div><div class="sl">Avec prix</div></div>
-    <div class="sb sab"><div class="sv" id="sp3">&#8212;</div><div class="sl">Sans prix</div></div>
+    <div class="sb sab"><div class="sv" id="sp3">&#8212;</div><div class="sl">Remplac&#233;s</div></div>
+    <div class="sb" style="background:rgba(255,152,0,0.08);border:1px solid rgba(255,152,0,0.25)"><div class="sv" id="sp4" style="color:#FF9800">&#8212;</div><div class="sl">&#192; v&#233;rifier</div></div>
   </div>
   <div class="rwrap" id="rw-prix">
     <table><thead><tr>
@@ -594,8 +597,8 @@ function parsePanier(txt) {
   for(var i=0;i<lines.length;i++){if(lines[i].indexOf('Part No.')!==-1){hdrIdx=i;break;}}
   if(hdrIdx===-1) throw new Error('"Part No." non trouv\u00e9e');
   var hdrs=splitLine(lines[hdrIdx].replace('\r',''));
-  var partIdx=-1,priceIdx=-1,nameIdx=-1;
-  for(var j=0;j<hdrs.length;j++){var h=hdrs[j].trim();if(h==='Part No.')partIdx=j;if(h==='Price Per Unit')priceIdx=j;if(h==='Part Name')nameIdx=j;}
+  var partIdx=-1,priceIdx=-1,nameIdx=-1,inStoreIdx=-1;
+  for(var j=0;j<hdrs.length;j++){var h=hdrs[j].trim();if(h==='Part No.')partIdx=j;if(h==='Price Per Unit')priceIdx=j;if(h==='Part Name')nameIdx=j;if(h==='In Store')inStoreIdx=j;}
   if(partIdx===-1||priceIdx===-1) throw new Error('"Part No." ou "Price Per Unit" introuvables');
   var out=[];
   for(var i=hdrIdx+1;i<lines.length;i++){
@@ -607,7 +610,12 @@ function parsePanier(txt) {
     var price=parsePrix((v[priceIdx]||'').trim());
     var name=nameIdx>=0?(v[nameIdx]||'').trim():'';
     var gc='52'+ref.split('-').join('');
-    out.push({ref:ref,gc:gc,name:name,price:price});
+    var inStore=inStoreIdx>=0?(v[inStoreIdx]||'').trim():'';
+    var cat; // 'price' | 'replaced' | 'noprice'
+    if(inStore.indexOf('Replaced Contact Dealer')!==-1){cat='replaced';}
+    else if(price!==null){cat='price';}
+    else{cat='noprice';}
+    out.push({ref:ref,gc:gc,name:name,price:price,cat:cat});
   }
   return out;
 }
@@ -619,15 +627,17 @@ function parsePrix(s){
   return isNaN(val)?null:val;
 }
 function renderPrix(){
-  var w=prixData.filter(function(r){return r.price!==null;}).length;
-  var wo=prixData.length-w;
+  var wPrice=prixData.filter(function(r){return r.cat==='price';}).length;
+  var wReplaced=prixData.filter(function(r){return r.cat==='replaced';}).length;
+  var wNoprice=prixData.filter(function(r){return r.cat==='noprice';}).length;
   document.getElementById('sp1').textContent=prixData.length;
-  document.getElementById('sp2').textContent=w;
-  document.getElementById('sp3').textContent=wo;
+  document.getElementById('sp2').textContent=wPrice;
+  document.getElementById('sp3').textContent=wReplaced;
+  document.getElementById('sp4').textContent=wNoprice;
   document.getElementById('sbar-prix').style.display='grid';
   var fl=document.getElementById('flist-prix');fl.innerHTML='';
   var div=document.createElement('div');div.className='fitem';
-  var span=document.createElement('span');span.textContent='\u2713 '+prixData.length+' articles \u2014 '+w+' avec prix';
+  var span=document.createElement('span');span.textContent='\u2713 '+prixData.length+' articles \u2014 '+wPrice+' avec prix, '+wReplaced+' remplac\u00e9s, '+wNoprice+' \u00e0 v\u00e9rifier';
   div.appendChild(span);fl.appendChild(div);
   var tb=document.getElementById('tb-prix');tb.innerHTML='';
   document.getElementById('rw-prix').style.display=prixData.length?'block':'none';
@@ -637,15 +647,18 @@ function renderPrix(){
     var td2=document.createElement('td');td2.className='mn';td2.style.color='var(--y)';td2.textContent=r.ref;
     var td3=document.createElement('td');td3.textContent=r.name;
     var td4=document.createElement('td');td4.className='mn';td4.style.textAlign='right';td4.style.fontWeight='600';
-    if(r.price!==null){td4.textContent=r.price.toFixed(2)+' \u20ac';}
-    else{td4.textContent='N/D';td4.style.color='var(--r)';}
+    if(r.cat==='price'){td4.textContent=r.price.toFixed(2)+' \u20ac';}
+    else if(r.cat==='replaced'){td4.textContent='Remplac\u00e9';td4.style.color='var(--r)';}
+    else{td4.textContent='\u00c0 v\u00e9rifier';td4.style.color='#FF9800';}
     tr.appendChild(td1);tr.appendChild(td2);tr.appendChild(td3);tr.appendChild(td4);tb.appendChild(tr);
   });
-  document.getElementById('btnExportPrix').disabled=w===0;
-  document.getElementById('smsg-prix').textContent=prixData.length+' articles \u2014 '+w+' prix \u00e0 mettre \u00e0 jour.';
+  document.getElementById('btnExportPrix').disabled=wPrice===0;
+  document.getElementById('btnExportReplaced').disabled=wReplaced===0;
+  document.getElementById('btnExportNoprice').disabled=wNoprice===0;
+  document.getElementById('smsg-prix').textContent=prixData.length+' articles \u2014 '+wPrice+' prix \u00e0 mettre \u00e0 jour, '+wReplaced+' remplac\u00e9s, '+wNoprice+' \u00e0 v\u00e9rifier.';
 }
 function exportPrix(){
-  var exp=prixData.filter(function(r){return r.price!==null;});
+  var exp=prixData.filter(function(r){return r.cat==='price';});
   if(!exp.length) return;
   var rows=[['Code article','Prix achat unitaire HT']];
   exp.forEach(function(r){rows.push([r.gc,r.price]);});
@@ -654,6 +667,28 @@ function exportPrix(){
   ws['!cols']=[{wch:20},{wch:22}];
   XLSX.utils.book_append_sheet(wb,ws,'MAJ Prix');
   XLSX.writeFile(wb,'MAJ_Prix_CAT_'+new Date().toISOString().slice(0,10)+'.xlsx');
+}
+function exportReplaced(){
+  var exp=prixData.filter(function(r){return r.cat==='replaced';});
+  if(!exp.length) return;
+  var rows=[['Code article']];
+  exp.forEach(function(r){rows.push([r.gc]);});
+  var wb=XLSX.utils.book_new();
+  var ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=[{wch:20}];
+  XLSX.utils.book_append_sheet(wb,ws,'Articles remplac\u00e9s');
+  XLSX.writeFile(wb,'Code_article_remplac\u00e9_'+new Date().toISOString().slice(0,10)+'.xlsx');
+}
+function exportNoprice(){
+  var exp=prixData.filter(function(r){return r.cat==='noprice';});
+  if(!exp.length) return;
+  var rows=[['Code article']];
+  exp.forEach(function(r){rows.push([r.gc]);});
+  var wb=XLSX.utils.book_new();
+  var ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=[{wch:20}];
+  XLSX.utils.book_append_sheet(wb,ws,'Articles \u00e0 v\u00e9rifier');
+  XLSX.writeFile(wb,'Code_article_\u00e0_v\u00e9rifier_'+new Date().toISOString().slice(0,10)+'.xlsx');
 }
 
 </script>
