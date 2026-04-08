@@ -328,12 +328,23 @@ function parseCSV(txt) {
   return out;
 }
 function splitLine(l) {
-  var r=[], c='', q=false, ch;
-  for (var i=0; i<l.length; i++) {
+  // Parser CSV robuste : gere les guillemets internes non-echappes
+  // Ex: "3/4" ID Steel Flat Washer" => champ complet sans casser les colonnes
+  var r=[], c='', i=0, ch, len=l.length;
+  while(i<len) {
     ch=l[i];
-    if (ch==='"') { q=!q; }
-    else if (ch===',' && !q) { r.push(c); c=''; }
-    else { c+=ch; }
+    if(ch==='"') {
+      i++;
+      while(i<len) {
+        ch=l[i];
+        if(ch==='"') {
+          if(i+1<len && l[i+1]==='"') { c+='"'; i+=2; }
+          else if(i+1<len && l[i+1]!==',') { c+='"'; i++; }
+          else { i++; break; }
+        } else { c+=ch; i++; }
+      }
+    } else if(ch===',') { r.push(c); c=''; i++;
+    } else { c+=ch; i++; }
   }
   r.push(c); return r;
 }
