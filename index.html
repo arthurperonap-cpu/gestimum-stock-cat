@@ -82,6 +82,21 @@ td{padding:10px 14px;}
 .tranche-row{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--d);border:1px solid var(--b);margin-bottom:8px;}
 .tranche-row span{font-family:"IBM Plex Mono",monospace;font-size:13px;color:var(--t);}
 #total-refs{font-size:12px;color:var(--x);font-family:"IBM Plex Mono",monospace;margin-bottom:16px;}
+.srch-bar{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;}
+.srch-inp{background:#000;border:1px solid var(--b);color:var(--t);padding:8px 12px;font-family:"IBM Plex Mono",monospace;font-size:12px;flex:1;min-width:160px;max-width:320px;}
+.srch-inp:focus{outline:none;border-color:var(--y);}
+.srch-cnt{font-size:11px;color:var(--x);font-family:"IBM Plex Mono",monospace;}
+.hist-block{margin-top:20px;}
+.hist-title{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:600;color:var(--y);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;}
+.hist-entry{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(255,255,255,0.03);border-left:3px solid var(--b);margin-bottom:6px;font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--x);}
+.hist-date{color:var(--y);}
+.bdel{background:none;border:1px solid rgba(244,67,54,0.4);color:var(--r);font-size:10px;padding:2px 8px;cursor:pointer;font-family:"IBM Plex Mono",monospace;}
+.bdel:hover{background:var(--r);color:#fff;}
+.badge-dup{display:inline-block;background:rgba(33,150,243,0.2);border:1px solid rgba(33,150,243,0.4);color:#2196F3;font-family:"IBM Plex Mono",monospace;font-size:9px;padding:1px 5px;border-radius:2px;margin-left:4px;vertical-align:middle;}
+.badge-stock{display:inline-block;padding:2px 6px;font-family:"IBM Plex Mono",monospace;font-size:10px;font-weight:600;border-radius:2px;}
+.bs-gere{background:rgba(76,175,80,0.15);color:var(--gr);border:1px solid rgba(76,175,80,0.3);}
+.bs-nm{background:rgba(33,150,243,0.12);color:#2196F3;border:1px solid rgba(33,150,243,0.25);}
+.bs-abs{background:rgba(244,67,54,0.1);color:var(--r);border:1px solid rgba(244,67,54,0.2);}
 .mov{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:100;align-items:center;justify-content:center;}
 .mov.open{display:flex;}
 .mbox{background:var(--g);border:1px solid var(--b);border-top:3px solid var(--y);width:90%;max-width:900px;max-height:80vh;display:flex;flex-direction:column;}
@@ -175,7 +190,10 @@ td{padding:10px 14px;}
     <button class="fb" onclick="filterTable('alert',this)">&#9888; Alertes prix</button>
     <button class="fb" onclick="filterTable('reman',this)">REMAN</button>
   </div>
-
+  <div class="srch-bar" id="srch-bar-analyse" style="display:none">
+    <input class="srch-inp" id="srch-analyse" placeholder="&#128269; Rechercher code ou d&#233;signation..." oninput="searchAnalyse()">
+    <span class="srch-cnt" id="srch-cnt-analyse"></span>
+  </div>
   <div class="rwrap" id="rw">
     <table><thead><tr>
       <th>Statut</th><th>Code Gestimum</th><th>R&#233;f. CAT</th>
@@ -220,10 +238,19 @@ td{padding:10px 14px;}
     <div class="sb sab"><div class="sv" id="sp3">&#8212;</div><div class="sl">Remplac&#233;s</div></div>
     <div class="sb" style="background:rgba(255,152,0,0.08);border:1px solid rgba(255,152,0,0.25)"><div class="sv" id="sp4" style="color:#FF9800">&#8212;</div><div class="sl">&#192; v&#233;rifier</div></div>
   </div>
+  <div class="srch-bar" id="srch-bar-prix" style="display:none">
+    <input class="srch-inp" id="srch-prix" placeholder="&#128269; Rechercher code article..." oninput="searchPrix()">
+    <span class="srch-cnt" id="srch-cnt-prix"></span>
+    <button class="btn bdb" onclick="exportStockState()" style="margin-left:auto">&#128190; Export &#233;tat stock global</button>
+  </div>
   <div class="rwrap" id="rw-prix">
     <table><thead><tr>
-      <th>Code Gestimum</th><th>R&#233;f. CAT</th><th>Nom article</th><th>Prix achat HT (EUR)</th>
+      <th>Code Gestimum</th><th>R&#233;f. CAT</th><th>Nom article</th><th>Stock Gest.</th><th>Prix achat HT (EUR)</th>
     </tr></thead><tbody id="tb-prix"></tbody></table>
+  </div>
+  <div class="hist-block" id="hist-block" style="display:none">
+    <div class="hist-title">&#128337; Historique des mises &#224; jour prix</div>
+    <div id="hist-list"></div>
   </div>
 
 </div>
@@ -245,6 +272,7 @@ td{padding:10px 14px;}
   </div>
   <div class="mft">
     <span style="font-size:12px;color:var(--x)">Modifications conserv&#233;es dans votre navigateur.</span>
+    <label class="btn bdb" style="cursor:pointer;position:relative;margin-left:8px">&#8593; Import CSV codes<input type="file" id="fi-stock-csv" accept=".csv,.txt" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%"></label>
     <button class="btn bp" onclick="closeModal()" style="margin-left:auto">Fermer</button>
   </div>
 </div></div>
@@ -400,71 +428,13 @@ function runAnalysis() {
   updateExportBtns();
 }
 
-function updateStats() {
-  var g=0,nm=0,ab=0,al=0,re=0;
-  results.forEach(function(r){
-    if(r.status==='gere') g++;
-    else if(r.status==='non_gere') nm++;
-    else if(r.status==='reman') re++;
-    else ab++;
-    if(r.priceAlert) al++;
-  });
-  document.getElementById('s1').textContent=results.length;
-  document.getElementById('s2').textContent=g;
-  document.getElementById('s3').textContent=nm;
-  document.getElementById('s4').textContent=ab;
-  document.getElementById('s5').textContent=al;
-  document.getElementById('s6').textContent=re;
-  document.getElementById('sbar').style.display='grid';
-  document.getElementById('fbar').style.display='flex';
-  document.getElementById('note').style.display='block';
-  document.getElementById('smsg').textContent=g+' g\u00e9r\u00e9s | '+nm+' non g\u00e9r\u00e9s | '+ab+' absents | '+al+' alerte(s) | '+re+' REMAN';
-}
+// updateStats définie plus bas (version avec srch-bar)
 function updateExportBtns() {
   document.getElementById('btnE1').style.display=results.filter(function(r){return r.status==='gere';}).length?'inline-block':'none';
   document.getElementById('btnE3').style.display=results.filter(function(r){return r.priceAlert;}).length?'inline-block':'none';
 }
-function renderResults(data) {
-  var tb=document.getElementById('tb');
-  tb.innerHTML='';
-  document.getElementById('rw').style.display=data.length?'block':'none';
-  data.forEach(function(r){
-    var tr=document.createElement('tr');
-    tr.setAttribute('data-m',r.status);
-    tr.setAttribute('data-alert',r.priceAlert?'1':'0');
-    function mkTd(txt,cls,style){var td=document.createElement('td');if(cls)td.className=cls;if(style)td.style.cssText=style;if(txt&&typeof txt==='object')td.appendChild(txt);else td.textContent=txt||'';return td;}
-    var badge=document.createElement('span');
-    if(r.status==='gere'){badge.className='badge bgere';badge.textContent='\u2713 G\u00c9R\u00c9';}
-    else if(r.status==='non_gere'){badge.className='badge bnm';badge.textContent='NON G\u00c9R\u00c9';}
-    else if(r.status==='reman'){badge.className='badge breman';badge.textContent='REMAN';}
-    else{badge.className='badge babsent';badge.textContent='ABSENT';}
-    var priceTd=document.createElement('td');
-    priceTd.className='mn'; priceTd.style.textAlign='right';
-    if(r.priceAlert){priceTd.style.color='#FF9800';priceTd.style.fontWeight='600';priceTd.title='Gestimum: '+r.priceAlert.gestPrice.toFixed(2)+'\u20ac | CAT: '+r.priceAlert.csvPrice.toFixed(2)+'\u20ac';}
-    priceTd.textContent=r.csvPrice>0?r.csvPrice.toFixed(2)+'\u20ac'+(r.priceAlert?' \u26a0':''):'';
-    tr.appendChild(mkTd(badge));
-    tr.appendChild(mkTd(r.gc,'mn'));
-    tr.appendChild(mkTd(r.ref,'mn','color:var(--y)'));
-    tr.appendChild(mkTd(r.lib));
-    tr.appendChild(mkTd(r.order,'mn','font-size:11px;color:var(--x)'));
-    tr.appendChild(mkTd(String(r.qty),'mn','text-align:right;font-weight:600'));
-    tr.appendChild(priceTd);
-    tb.appendChild(tr);
-  });
-}
-function filterTable(m,btn){
-  document.querySelectorAll('.fb').forEach(function(b){b.classList.remove('active');});
-  btn.classList.add('active');
-  document.querySelectorAll('#tb tr').forEach(function(tr){
-    var dm=tr.getAttribute('data-m')||'';
-    var isAlert=tr.getAttribute('data-alert')==='1';
-    var show;
-    if(m==='all') show=true;
-    else if(m==='alert') show=isAlert;
-    else show=(dm===m);
-    tr.style.display=show?'':'none';
-  });
-}
+// renderResults définie plus bas (version avec badges doublons)
+// filterTable définie plus bas (version avec search)
 function exportStock(){
   var exp=results.filter(function(r){return r.status==='gere';});
   if(!exp.length) return;
@@ -582,14 +552,7 @@ document.getElementById('dz-prix').addEventListener('dragleave', function(){ thi
 document.getElementById('dz-prix').addEventListener('drop', function(e){ e.preventDefault(); this.style.borderColor=''; if(e.dataTransfer.files[0]) loadPrixFile(e.dataTransfer.files[0]); });
 document.getElementById('fi-prix').addEventListener('change', function(){ if(this.files[0]) loadPrixFile(this.files[0]); this.value=''; });
 
-function loadPrixFile(f) {
-  var reader = new FileReader();
-  reader.onload = function(ev) {
-    try { prixData=parsePanier(ev.target.result); renderPrix(); }
-    catch(err) { alert('Erreur: '+err.message); }
-  };
-  reader.readAsText(f,'utf-8');
-}
+// loadPrixFile définie plus bas (version avec persistance)
 function parsePanier(txt) {
   if(txt.charCodeAt(0)===0xFEFF) txt=txt.slice(1);
   var lines=txt.split('\n');
@@ -626,48 +589,8 @@ function parsePrix(s){
   var val=parseFloat(num);
   return isNaN(val)?null:val;
 }
-function renderPrix(){
-  var wPrice=prixData.filter(function(r){return r.cat==='price';}).length;
-  var wReplaced=prixData.filter(function(r){return r.cat==='replaced';}).length;
-  var wNoprice=prixData.filter(function(r){return r.cat==='noprice';}).length;
-  document.getElementById('sp1').textContent=prixData.length;
-  document.getElementById('sp2').textContent=wPrice;
-  document.getElementById('sp3').textContent=wReplaced;
-  document.getElementById('sp4').textContent=wNoprice;
-  document.getElementById('sbar-prix').style.display='grid';
-  var fl=document.getElementById('flist-prix');fl.innerHTML='';
-  var div=document.createElement('div');div.className='fitem';
-  var span=document.createElement('span');span.textContent='\u2713 '+prixData.length+' articles \u2014 '+wPrice+' avec prix, '+wReplaced+' remplac\u00e9s, '+wNoprice+' \u00e0 v\u00e9rifier';
-  div.appendChild(span);fl.appendChild(div);
-  var tb=document.getElementById('tb-prix');tb.innerHTML='';
-  document.getElementById('rw-prix').style.display=prixData.length?'block':'none';
-  prixData.forEach(function(r){
-    var tr=document.createElement('tr');
-    var td1=document.createElement('td');td1.className='mn';td1.textContent=r.gc;
-    var td2=document.createElement('td');td2.className='mn';td2.style.color='var(--y)';td2.textContent=r.ref;
-    var td3=document.createElement('td');td3.textContent=r.name;
-    var td4=document.createElement('td');td4.className='mn';td4.style.textAlign='right';td4.style.fontWeight='600';
-    if(r.cat==='price'){td4.textContent=r.price.toFixed(2)+' \u20ac';}
-    else if(r.cat==='replaced'){td4.textContent='Remplac\u00e9';td4.style.color='var(--r)';}
-    else{td4.textContent='\u00c0 v\u00e9rifier';td4.style.color='#FF9800';}
-    tr.appendChild(td1);tr.appendChild(td2);tr.appendChild(td3);tr.appendChild(td4);tb.appendChild(tr);
-  });
-  document.getElementById('btnExportPrix').disabled=wPrice===0;
-  document.getElementById('btnExportReplaced').disabled=wReplaced===0;
-  document.getElementById('btnExportNoprice').disabled=wNoprice===0;
-  document.getElementById('smsg-prix').textContent=prixData.length+' articles \u2014 '+wPrice+' prix \u00e0 mettre \u00e0 jour, '+wReplaced+' remplac\u00e9s, '+wNoprice+' \u00e0 v\u00e9rifier.';
-}
-function exportPrix(){
-  var exp=prixData.filter(function(r){return r.cat==='price';});
-  if(!exp.length) return;
-  var rows=[['Code article','Prix achat unitaire HT']];
-  exp.forEach(function(r){rows.push([r.gc,r.price]);});
-  var wb=XLSX.utils.book_new();
-  var ws=XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols']=[{wch:20},{wch:22}];
-  XLSX.utils.book_append_sheet(wb,ws,'MAJ Prix');
-  XLSX.writeFile(wb,'MAJ_Prix_CAT_'+new Date().toISOString().slice(0,10)+'.xlsx');
-}
+// renderPrix définie plus bas (version avec badges stock + doublons)
+// exportPrix définie plus bas (version avec logging historique)
 function exportReplaced(){
   var exp=prixData.filter(function(r){return r.cat==='replaced';});
   if(!exp.length) return;
@@ -689,6 +612,397 @@ function exportNoprice(){
   ws['!cols']=[{wch:20}];
   XLSX.utils.book_append_sheet(wb,ws,'Articles \u00e0 v\u00e9rifier');
   XLSX.writeFile(wb,'Code_article_\u00e0_v\u00e9rifier_'+new Date().toISOString().slice(0,10)+'.xlsx');
+}
+
+// ==================== #4 SEARCH ANALYSE ====================
+function searchAnalyse(){
+  var q=(document.getElementById('srch-analyse').value||'').toLowerCase().trim();
+  var rows=document.querySelectorAll('#tb tr');
+  var vis=0;
+  rows.forEach(function(tr){
+    if(tr.style.display==='none'&&q) return; // respect filter
+    var txt=tr.textContent.toLowerCase();
+    var show=!q||txt.indexOf(q)!==-1;
+    tr.setAttribute('data-srch',show?'1':'0');
+    if(show) vis++;
+  });
+  // Re-apply filter after search
+  var activeFilter=document.querySelector('.fb.active');
+  var fm=activeFilter?activeFilter.getAttribute('data-filter')||'all':'all';
+  document.querySelectorAll('#tb tr').forEach(function(tr){
+    var dm=tr.getAttribute('data-m')||'';
+    var isAlert=tr.getAttribute('data-alert')==='1';
+    var matchFilter;
+    if(fm==='all') matchFilter=true;
+    else if(fm==='alert') matchFilter=isAlert;
+    else matchFilter=(dm===fm);
+    var matchSrch=!q||tr.getAttribute('data-srch')==='1';
+    tr.style.display=(matchFilter&&matchSrch)?'':'none';
+  });
+  var visCount=document.querySelectorAll('#tb tr:not([style*="display: none"]):not([style*="display:none"])').length;
+  document.getElementById('srch-cnt-analyse').textContent=q?visCount+' r\u00e9sultat(s)':'';
+}
+function filterTable(m,btn){
+  document.querySelectorAll('.fb').forEach(function(b){b.classList.remove('active');});
+  btn.classList.add('active');
+  btn.setAttribute('data-filter',m);
+  var q=(document.getElementById('srch-analyse').value||'').toLowerCase().trim();
+  document.querySelectorAll('#tb tr').forEach(function(tr){
+    var dm=tr.getAttribute('data-m')||'';
+    var isAlert=tr.getAttribute('data-alert')==='1';
+    var matchFilter;
+    if(m==='all') matchFilter=true;
+    else if(m==='alert') matchFilter=isAlert;
+    else matchFilter=(dm===m);
+    var matchSrch=!q||tr.textContent.toLowerCase().indexOf(q)!==-1;
+    tr.style.display=(matchFilter&&matchSrch)?'':'none';
+  });
+  var visCount=document.querySelectorAll('#tb tr:not([style*="display: none"]):not([style*="display:none"])').length;
+  document.getElementById('srch-cnt-analyse').textContent=q?visCount+' r\u00e9sultat(s)':'';
+}
+
+// ==================== #4 SEARCH PRIX ====================
+function searchPrix(){
+  var q=(document.getElementById('srch-prix').value||'').toLowerCase().trim();
+  var rows=document.querySelectorAll('#tb-prix tr');
+  var vis=0;
+  rows.forEach(function(tr){
+    var txt=tr.textContent.toLowerCase();
+    var show=!q||txt.indexOf(q)!==-1;
+    tr.style.display=show?'':'none';
+    if(show) vis++;
+  });
+  document.getElementById('srch-cnt-prix').textContent=q?vis+' r\u00e9sultat(s)':'';
+}
+
+// ==================== #2 HISTORIQUE MAJ PRIX ====================
+var LS_HIST='gsc_hist_v1';
+function addHistEntry(nb,nbReplaced,nbNoprice){
+  var hist=[];
+  try{hist=JSON.parse(localStorage.getItem(LS_HIST)||'[]');}catch(e){}
+  var mMap=buildMaps().mMap;
+  // Calcul écart moyen sur les articles avec prix et dans base stock
+  var ecarts=prixData.filter(function(r){return r.cat==='price'&&mMap[r.gc]&&mMap[r.gc].prix;});
+  var ecartMoyen=null;
+  if(ecarts.length){
+    var sum=0;ecarts.forEach(function(r){sum+=Math.abs(r.price-parseFloat(mMap[r.gc].prix));});
+    ecartMoyen=(sum/ecarts.length).toFixed(2);
+  }
+  hist.unshift({date:new Date().toISOString(),nb:nb,nbReplaced:nbReplaced,nbNoprice:nbNoprice,ecart:ecartMoyen});
+  if(hist.length>20) hist=hist.slice(0,20);
+  try{localStorage.setItem(LS_HIST,JSON.stringify(hist));}catch(e){}
+  renderHist();
+}
+function renderHist(){
+  var hist=[];
+  try{hist=JSON.parse(localStorage.getItem(LS_HIST)||'[]');}catch(e){}
+  var block=document.getElementById('hist-block');
+  var list=document.getElementById('hist-list');
+  list.innerHTML='';
+  if(!hist.length){block.style.display='none';return;}
+  block.style.display='block';
+  hist.forEach(function(h,i){
+    var d=new Date(h.date);
+    var ds=d.toLocaleDateString('fr-FR')+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+    var div=document.createElement('div');div.className='hist-entry';
+    var info=document.createElement('span');
+    info.innerHTML='<span class="hist-date">'+ds+'</span> &mdash; '+h.nb+' prix mis \u00e0 jour'
+      +(h.nbReplaced?' &nbsp;|&nbsp; '+h.nbReplaced+' remplac\u00e9s':'')
+      +(h.nbNoprice?' &nbsp;|&nbsp; '+h.nbNoprice+' \u00e0 v\u00e9rifier':'')
+      +(h.ecart?' &nbsp;|&nbsp; \u00e9cart moy. '+h.ecart+'\u20ac':'');
+    var btn=document.createElement('button');btn.className='bdel';btn.textContent='\u00d7 Suppr';
+    btn.setAttribute('data-i',String(i));
+    btn.onclick=function(){
+      var arr=[];try{arr=JSON.parse(localStorage.getItem(LS_HIST)||'[]');}catch(e){}
+      arr.splice(parseInt(this.getAttribute('data-i'),10),1);
+      try{localStorage.setItem(LS_HIST,JSON.stringify(arr));}catch(e){}
+      renderHist();
+    };
+    div.appendChild(info);div.appendChild(btn);list.appendChild(div);
+  });
+}
+
+// ==================== #3 PERSISTANCE PANIER ====================
+var LS_PANIER='gsc_panier_v1';
+function savePanier(rawText,fname){
+  try{localStorage.setItem(LS_PANIER,JSON.stringify({txt:rawText,fname:fname,ts:new Date().toISOString()}));}catch(e){}
+}
+function restorePanier(){
+  try{
+    var s=localStorage.getItem(LS_PANIER);
+    if(!s) return;
+    var obj=JSON.parse(s);
+    if(!obj.txt) return;
+    prixData=parsePanier(obj.txt);
+    renderPrix();
+    // Afficher indicateur
+    var fl=document.getElementById('flist-prix');
+    var note=document.createElement('div');note.style.cssText='font-size:10px;color:var(--x);font-family:"IBM Plex Mono",monospace;margin-top:4px;';
+    var d=new Date(obj.ts);note.textContent='\u21ba Restaur\u00e9 : '+obj.fname+' ('+d.toLocaleDateString('fr-FR')+')';
+    fl.appendChild(note);
+  }catch(e){}
+}
+
+// ==================== #5 BADGE STOCK DANS ONGLET PRIX ====================
+function getStockBadge(gc){
+  var maps=buildMaps();
+  if(maps.mMap[gc]) return '<span class="badge-stock bs-gere">G\u00c9R\u00c9</span>';
+  if(maps.nmMap[gc]) return '<span class="badge-stock bs-nm">NON G\u00c9R\u00c9</span>';
+  return '<span class="badge-stock bs-abs">ABSENT</span>';
+}
+
+// ==================== #6 DOUBLONS ====================
+function computeDups(data){
+  var count={};
+  data.forEach(function(r){count[r.gc]=(count[r.gc]||0)+1;});
+  return count;
+}
+
+// ==================== #7 EXPORT ÉTAT STOCK GLOBAL ====================
+function exportStockState(){
+  var managed=buildManagedList();
+  // Construire un map prix depuis le dernier panier chargé
+  var prixMap={};
+  prixData.forEach(function(r){if(r.cat==='price') prixMap[r.gc]={price:r.price,name:r.name,ref:r.ref};});
+  // Récupérer historique de prix stocké
+  var prixHist={};
+  try{var ph=localStorage.getItem(LS_PRIXHIST);if(ph) prixHist=JSON.parse(ph);}catch(e){}
+
+  var rows=[['Code Gestimum','R\u00e9f\u00e9rence CAT','Libell\u00e9','Prix Gestimum actuel (EUR)','Dernier prix CAT connu (EUR)','\u00c9cart (EUR)','\u00c9cart (%)','Date derni\u00e8re MAJ']];
+  managed.forEach(function(item){
+    var gc=item.code;
+    var lib=item.libelle||'';
+    var refCAT=gc.slice(2); // ref CAT = code sans '52' devant
+    // Retrouver ref formatée avec tirets depuis ALL_REFS
+    var catRef='';
+    for(var i=0;i<ALL_REFS.length;i++){if(ALL_REFS[i]===gc){catRef=gc.slice(2);break;}}
+    var pCat=prixMap[gc]?prixMap[gc].price:null;
+    var hist=prixHist[gc];
+    var lastCatPrice=pCat||(hist?hist.price:null);
+    var lastDate=hist?hist.date:'';
+    if(pCat) lastDate=new Date().toISOString().slice(0,10);
+    var gestPrice=null; // On n'a pas le prix Gestimum actuel en mémoire, on laisse vide
+    // Récupérer prix Gestimum depuis NM si présent
+    var maps=buildMaps();
+    var nmE=maps.nmMap[gc];
+    if(nmE&&nmE.prix!==null&&nmE.prix!==undefined) gestPrice=parseFloat(nmE.prix);
+    var ecartEur='', ecartPct='';
+    if(gestPrice!==null&&lastCatPrice!==null){
+      ecartEur=(lastCatPrice-gestPrice).toFixed(2);
+      ecartPct=gestPrice>0?((lastCatPrice-gestPrice)/gestPrice*100).toFixed(1):'';
+    }
+    var refDisplay=prixMap[gc]?prixMap[gc].ref:(hist?hist.ref:catRef);
+    rows.push([gc,refDisplay,lib,gestPrice!==null?gestPrice:'',lastCatPrice!==null?lastCatPrice:'',ecartEur,ecartPct,lastDate]);
+  });
+  var wb=XLSX.utils.book_new();
+  var ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=[{wch:20},{wch:18},{wch:40},{wch:22},{wch:22},{wch:12},{wch:10},{wch:18}];
+  XLSX.utils.book_append_sheet(wb,ws,'Etat Stock');
+  XLSX.writeFile(wb,'\u00c9tat_Stock_Global_'+new Date().toISOString().slice(0,10)+'.xlsx');
+}
+
+// Historique des prix par article (pour export état stock)
+var LS_PRIXHIST='gsc_prixhist_v1';
+function savePrixHist(items){
+  // items = [{gc, price, ref, date}]
+  var hist={};
+  try{var s=localStorage.getItem(LS_PRIXHIST);if(s) hist=JSON.parse(s);}catch(e){}
+  var date=new Date().toISOString().slice(0,10);
+  items.forEach(function(it){hist[it.gc]={price:it.price,ref:it.ref,date:date};});
+  try{localStorage.setItem(LS_PRIXHIST,JSON.stringify(hist));}catch(e){}
+}
+
+// ==================== #8 IMPORT CSV BASE STOCK ====================
+document.getElementById('fi-stock-csv').addEventListener('change',function(){
+  if(!this.files||!this.files[0]) return;
+  var f=this.files[0];
+  var reader=new FileReader();
+  reader.onload=function(ev){
+    var txt=ev.target.result;
+    if(txt.charCodeAt(0)===0xFEFF) txt=txt.slice(1);
+    var lines=txt.split('\n');
+    var codes=[];
+    lines.forEach(function(l){
+      var c=l.replace('\r','').trim().toUpperCase();
+      if(c&&c.length>=4) codes.push(c);
+    });
+    if(!codes.length){alert('Aucun code trouvé dans le fichier.');return;}
+    // Supprimer les doublons
+    codes=codes.filter(function(c,i){return codes.indexOf(c)===i;});
+    // Ajouter à la base stock (en évitant les doublons)
+    var ov=getOv();
+    ov.add=ov.add||[];ov.del=ov.del||[];
+    var added=0,skipped=0;
+    var existing=buildManagedList().map(function(r){return r.code;});
+    codes.forEach(function(code){
+      if(existing.indexOf(code)!==-1){skipped++;return;}
+      // Supprimer de la liste del si présent
+      ov.del=ov.del.filter(function(c){return c!==code;});
+      // Ajouter si pas déjà dans add
+      if(!ov.add.filter(function(r){return r.code===code;}).length){
+        ov.add.push({code:code,libelle:''});
+        added++;
+      }
+    });
+    saveOv(ov);
+    alert(added+' code(s) ajouté(s).'+(skipped?' '+skipped+' déjà présent(s) ignoré(s).':''));
+    renderDB();
+  };
+  reader.readAsText(f,'utf-8');
+  this.value='';
+});
+
+// ==================== OVERRIDES & INIT ====================
+
+// Override loadPrixFile pour ajouter persistance
+var _origLoadPrixFile=loadPrixFile;
+function loadPrixFile(f){
+  var reader=new FileReader();
+  reader.onload=function(ev){
+    try{
+      var txt=ev.target.result;
+      prixData=parsePanier(txt);
+      savePanier(txt,f.name); // #3 persistance
+      renderPrix();
+    }catch(err){alert('Erreur: '+err.message);}
+  };
+  reader.readAsText(f,'utf-8');
+}
+
+// Override exportPrix pour logger l'historique
+var _origExportPrix=exportPrix;
+function exportPrix(){
+  var exp=prixData.filter(function(r){return r.cat==='price';});
+  if(!exp.length) return;
+  var rows=[['Code article','Prix achat unitaire HT']];
+  exp.forEach(function(r){rows.push([r.gc,r.price]);});
+  var wb=XLSX.utils.book_new();
+  var ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=[{wch:20},{wch:22}];
+  XLSX.utils.book_append_sheet(wb,ws,'MAJ Prix');
+  XLSX.writeFile(wb,'MAJ_Prix_CAT_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  // #2 historique
+  var nbR=prixData.filter(function(r){return r.cat==='replaced';}).length;
+  var nbN=prixData.filter(function(r){return r.cat==='noprice';}).length;
+  addHistEntry(exp.length,nbR,nbN);
+  // Sauvegarder historique des prix articles
+  savePrixHist(exp.map(function(r){return {gc:r.gc,price:r.price,ref:r.ref};}));
+}
+
+// Override renderPrix pour ajouter badges stock + doublons
+var _origRenderPrix=renderPrix;
+function renderPrix(){
+  var wPrice=prixData.filter(function(r){return r.cat==='price';}).length;
+  var wReplaced=prixData.filter(function(r){return r.cat==='replaced';}).length;
+  var wNoprice=prixData.filter(function(r){return r.cat==='noprice';}).length;
+  document.getElementById('sp1').textContent=prixData.length;
+  document.getElementById('sp2').textContent=wPrice;
+  document.getElementById('sp3').textContent=wReplaced;
+  document.getElementById('sp4').textContent=wNoprice;
+  document.getElementById('sbar-prix').style.display='grid';
+  var fl=document.getElementById('flist-prix');fl.innerHTML='';
+  var div=document.createElement('div');div.className='fitem';
+  var span=document.createElement('span');span.textContent='\u2713 '+prixData.length+' articles \u2014 '+wPrice+' avec prix, '+wReplaced+' remplac\u00e9s, '+wNoprice+' \u00e0 v\u00e9rifier';
+  div.appendChild(span);fl.appendChild(div);
+  var tb=document.getElementById('tb-prix');tb.innerHTML='';
+  document.getElementById('rw-prix').style.display=prixData.length?'block':'none';
+  // #6 doublons
+  var dups=computeDups(prixData);
+  prixData.forEach(function(r){
+    var tr=document.createElement('tr');
+    // Col 1: Code Gestimum + badge dup
+    var td1=document.createElement('td');td1.className='mn';
+    var gcSpan=document.createElement('span');gcSpan.textContent=r.gc;
+    td1.appendChild(gcSpan);
+    if(dups[r.gc]>1){var bd=document.createElement('span');bd.className='badge-dup';bd.textContent='\u00d7'+dups[r.gc];td1.appendChild(bd);}
+    // Col 2: Réf CAT
+    var td2=document.createElement('td');td2.className='mn';td2.style.color='var(--y)';td2.textContent=r.ref;
+    // Col 3: Nom
+    var td3=document.createElement('td');td3.textContent=r.name;
+    // Col 4: Badge stock (#5)
+    var td4=document.createElement('td');td4.innerHTML=getStockBadge(r.gc);
+    // Col 5: Prix
+    var td5=document.createElement('td');td5.className='mn';td5.style.textAlign='right';td5.style.fontWeight='600';
+    if(r.cat==='price'){td5.textContent=r.price.toFixed(2)+' \u20ac';}
+    else if(r.cat==='replaced'){td5.textContent='Remplac\u00e9';td5.style.color='var(--r)';}
+    else{td5.textContent='\u00c0 v\u00e9rifier';td5.style.color='#FF9800';}
+    tr.appendChild(td1);tr.appendChild(td2);tr.appendChild(td3);tr.appendChild(td4);tr.appendChild(td5);tb.appendChild(tr);
+  });
+  document.getElementById('btnExportPrix').disabled=wPrice===0;
+  document.getElementById('btnExportReplaced').disabled=wReplaced===0;
+  document.getElementById('btnExportNoprice').disabled=wNoprice===0;
+  document.getElementById('smsg-prix').textContent=prixData.length+' articles \u2014 '+wPrice+' prix \u00e0 mettre \u00e0 jour, '+wReplaced+' remplac\u00e9s, '+wNoprice+' \u00e0 v\u00e9rifier.';
+  document.getElementById('srch-bar-prix').style.display='flex';
+  renderHist();
+}
+
+// Init
+window.addEventListener('DOMContentLoaded',function(){
+  // Afficher barre recherche analyse quand résultats présents (géré dans updateStats)
+  renderHist();
+  restorePanier(); // #3 restaurer panier
+});
+
+// Override updateStats pour afficher barre recherche onglet analyse
+var _origUpdateStats=updateStats;
+function updateStats(){
+  var g=0,nm=0,ab=0,al=0,re=0;
+  results.forEach(function(r){
+    if(r.status==='gere') g++;
+    else if(r.status==='non_gere') nm++;
+    else if(r.status==='reman') re++;
+    else ab++;
+    if(r.priceAlert) al++;
+  });
+  document.getElementById('s1').textContent=results.length;
+  document.getElementById('s2').textContent=g;
+  document.getElementById('s3').textContent=nm;
+  document.getElementById('s4').textContent=ab;
+  document.getElementById('s5').textContent=al;
+  document.getElementById('s6').textContent=re;
+  document.getElementById('sbar').style.display='grid';
+  document.getElementById('fbar').style.display='flex';
+  document.getElementById('note').style.display='block';
+  document.getElementById('srch-bar-analyse').style.display='flex'; // #4
+  document.getElementById('smsg').textContent=g+' g\u00e9r\u00e9s | '+nm+' non g\u00e9r\u00e9s | '+ab+' absents | '+al+' alerte(s) | '+re+' REMAN';
+}
+
+// Override renderResults pour badges doublons inter-commandes dans onglet analyse
+var _origRenderResults=renderResults;
+function renderResults(data){
+  // Compter doublons par gc
+  var count={};
+  data.forEach(function(r){count[r.gc]=(count[r.gc]||0)+1;});
+  var tb=document.getElementById('tb');
+  tb.innerHTML='';
+  document.getElementById('rw').style.display=data.length?'block':'none';
+  data.forEach(function(r){
+    var tr=document.createElement('tr');
+    tr.setAttribute('data-m',r.status);
+    tr.setAttribute('data-alert',r.priceAlert?'1':'0');
+    function mkTd(txt,cls,style){var td=document.createElement('td');if(cls)td.className=cls;if(style)td.style.cssText=style;if(txt&&typeof txt==='object')td.appendChild(txt);else td.textContent=txt||'';return td;}
+    var badge=document.createElement('span');
+    if(r.status==='gere'){badge.className='badge bgere';badge.textContent='\u2713 G\u00c9R\u00c9';}
+    else if(r.status==='non_gere'){badge.className='badge bnm';badge.textContent='NON G\u00c9R\u00c9';}
+    else if(r.status==='reman'){badge.className='badge breman';badge.textContent='REMAN';}
+    else{badge.className='badge babsent';badge.textContent='ABSENT';}
+    var priceTd=document.createElement('td');
+    priceTd.className='mn'; priceTd.style.textAlign='right';
+    if(r.priceAlert){priceTd.style.color='#FF9800';priceTd.style.fontWeight='600';priceTd.title='Gestimum: '+r.priceAlert.gestPrice.toFixed(2)+'\u20ac | CAT: '+r.priceAlert.csvPrice.toFixed(2)+'\u20ac';}
+    priceTd.textContent=r.csvPrice>0?r.csvPrice.toFixed(2)+'\u20ac'+(r.priceAlert?' \u26a0':''):'';
+    // Code Gestimum + badge dup (#6)
+    var gcTd=document.createElement('td');gcTd.className='mn';
+    gcTd.textContent=r.gc;
+    if(count[r.gc]>1){var bd=document.createElement('span');bd.className='badge-dup';bd.textContent='\u00d7'+count[r.gc];gcTd.appendChild(bd);}
+    tr.appendChild(mkTd(badge));
+    tr.appendChild(gcTd);
+    tr.appendChild(mkTd(r.ref,'mn','color:var(--y)'));
+    tr.appendChild(mkTd(r.lib));
+    tr.appendChild(mkTd(r.order,'mn','font-size:11px;color:var(--x)'));
+    tr.appendChild(mkTd(String(r.qty),'mn','text-align:right;font-weight:600'));
+    tr.appendChild(priceTd);
+    tb.appendChild(tr);
+  });
 }
 
 </script>
